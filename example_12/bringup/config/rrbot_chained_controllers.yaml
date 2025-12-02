@@ -1,6 +1,7 @@
 controller_manager:
   ros__parameters:
     update_rate: 2000  # Hz
+    cpu_affinity: [6]
 
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
