@@ -3,7 +3,10 @@
 
   <xacro:macro name="rrbot_ros2_control" params="name prefix">
 
-    <ros2_control name="${name}" type="system">
+    <ros2_control name="${name}" type="system" is_async="true">
+      <properties>
+          <async thread_priority="70" affinity="[4]" scheduling_policy="detached"/>
+      </properties>
       <hardware>
           <plugin>ros2_control_demo_example_12/RRBotSystemPositionOnlyHardware</plugin>
           <param name="example_param_hw_start_duration_sec">0</param>

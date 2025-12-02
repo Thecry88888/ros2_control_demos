@@ -60,6 +60,13 @@ def generate_launch_description():
             "rrbot_chained_controllers.yaml",
         ]
     )
+    jsb_file = PathJoinSubstitution(
+        [
+            FindPackageShare("ros2_control_demo_example_12"),
+            "config",
+            "joint_state_broadcaster.yaml",
+        ]
+    )
     rviz_config_file = PathJoinSubstitution(
         [FindPackageShare("ros2_control_demo_description"), "rrbot/rviz", "rrbot.rviz"]
     )
@@ -126,5 +133,13 @@ def generate_launch_description():
         delay_rviz_after_joint_state_broadcaster_spawner,
         delay_robot_controller_spawner_after_joint_state_broadcaster_spawner,
     ]
+
+
+    for i in range(0, 30):
+        nodes.append(Node(
+        package="controller_manager",
+        executable="spawner",
+        arguments=[f'joint{i}joint_state_broadcaster', "--param-file", jsb_file, "--inactive"],
+    ))
 
     return LaunchDescription(declared_arguments + nodes)
