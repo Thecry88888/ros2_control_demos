@@ -12,15 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+from ament_index_python.packages import get_package_share_directory
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, RegisterEventHandler
+from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition
-from launch.event_handlers import OnProcessExit
 from launch.substitutions import Command, FindExecutable, PathJoinSubstitution, LaunchConfiguration
 
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
+
+from controller_manager import launch_utils
 
 
 def generate_launch_description():
@@ -53,15 +56,13 @@ def generate_launch_description():
     )
     robot_description = {"robot_description": robot_description_content}
 
-    robot_controllers = PathJoinSubstitution(
-        [
-            FindPackageShare("ros2_control_demo_example_12"),
-            "config",
-            "rrbot_chained_controllers.yaml",
-        ]
+    robot_controllers = os.path.join(
+        get_package_share_directory("ros2_control_demo_example_12"),
+        "config",
+        "rrbot_chained_controllers.yaml",
     )
-    rviz_config_file = PathJoinSubstitution(
-        [FindPackageShare("ros2_control_demo_description"), "rrbot/rviz", "rrbot.rviz"]
+    rviz_config_file = os.path.join(
+        get_package_share_directory("ros2_control_demo_description"), "rrbot/rviz", "rrbot.rviz"
     )
 
     control_node = Node(
@@ -85,46 +86,16 @@ def generate_launch_description():
         condition=IfCondition(gui),
     )
 
-    joint_state_broadcaster_spawner = Node(
-        package="controller_manager",
-        executable="spawner",
-        arguments=["joint_state_broadcaster"],
+    controller_map = {
+        "joint_state_broadcaster": {},
+        "joint1_position_controller": {"param_file": robot_controllers},
+        "joint2_position_controller": {"param_file": robot_controllers},
+    }
+
+    spawner_launch_info = launch_utils.generate_spawner_launch_description(
+        controller_map, ["--activate-as-group", "--service-call-timeout", "20"]
     )
 
-    j1_controller_spawner = Node(
-        package="controller_manager",
-        executable="spawner",
-        arguments=["joint1_position_controller", "--param-file", robot_controllers],
-    )
-
-    j2_controller_spawner = Node(
-        package="controller_manager",
-        executable="spawner",
-        arguments=["joint2_position_controller", "--param-file", robot_controllers],
-    )
-
-    # Delay rviz start after `joint_state_broadcaster`
-    delay_rviz_after_joint_state_broadcaster_spawner = RegisterEventHandler(
-        event_handler=OnProcessExit(
-            target_action=joint_state_broadcaster_spawner,
-            on_exit=[rviz_node],
-        )
-    )
-
-    # Delay start of robot_controller after `joint_state_broadcaster`
-    delay_robot_controller_spawner_after_joint_state_broadcaster_spawner = RegisterEventHandler(
-        event_handler=OnProcessExit(
-            target_action=joint_state_broadcaster_spawner,
-            on_exit=[j1_controller_spawner, j2_controller_spawner],
-        )
-    )
-
-    nodes = [
-        control_node,
-        robot_state_pub_node,
-        joint_state_broadcaster_spawner,
-        delay_rviz_after_joint_state_broadcaster_spawner,
-        delay_robot_controller_spawner_after_joint_state_broadcaster_spawner,
-    ]
+    nodes = [control_node, robot_state_pub_node, spawner_launch_info, rviz_node]
 
     return LaunchDescription(declared_arguments + nodes)
