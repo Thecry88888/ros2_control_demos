@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://wiki.ros.org/xacro" name="lrmate_200id">
+  <xacro:arg name="prefix" default="" />
+  <xacro:arg name="use_gazebo" default="false" />
+
+  <!-- Import lrmate_200id macro -->
+  <xacro:include filename="$(find ros2_control_demo_description)/lrmate_200id/urdf/lrmate_200id_description.urdf.xacro"/>
+
+  <!-- create link fixed to the "world" -->
+  <link name="world"/>
+
+  <xacro:lrmate_200id_description/>
+
+  <!-- Import lrmate_200id ros2_control description -->
+  <xacro:include filename="$(find ros2_control_demo_lrmate_200id)/ros2_control/lrmate_200id.ros2_control.xacro" />
+  <xacro:lrmate_200id_ros2_control name="lrmate_200id" prefix="$(arg prefix)" use_gazebo="$(arg use_gazebo)"/>
+
+  <xacro:if value="$(arg use_gazebo)">
+    <xacro:include filename="$(find ros2_control_demo_lrmate_200id)/gazebo/lrmate_200id.gazebo.xacro" />
+    <xacro:lrmate_200id_gazebo prefix="$(arg prefix)"/>
+  </xacro:if>
+
+</robot>

@@ -5,8 +5,8 @@
   <version>0.0.0</version>
   <description>Package with URDF and description files of test robots.</description>
 
-  <maintainer email="denis@stogl.de">Denis Štogl</maintainer>
-  <maintainer email="christoph.froehlich@ait.ac.at">Christoph Fröhlich</maintainer>
+  <maintainer email="n96134637@gs.ncku.edu.tw">James Huang</maintainer>
+  <maintainer email="n96134637@gs.ncku.edu.tw">James Huang</maintainer>
 
   <license>Apache-2.0</license>
 

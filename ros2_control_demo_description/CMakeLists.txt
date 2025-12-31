@@ -28,4 +28,9 @@ install(
   DESTINATION share/${PROJECT_NAME}/r6bot
 )
 
+install(
+  DIRECTORY lrmate_200id/meshes lrmate_200id/srdf lrmate_200id/urdf lrmate_200id/rviz
+  DESTINATION share/${PROJECT_NAME}/lrmate_200id
+)
+
 ament_package()
