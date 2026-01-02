@@ -171,6 +171,20 @@ def generate_launch_description():
         ],
     )
 
+    delay_joint_state_broadcaster_spawner_after_gz_spawn_entity = RegisterEventHandler(
+        event_handler=OnProcessExit(
+            target_action=gz_spawn_entity,
+            on_exit=[joint_state_broadcaster_spawner],
+        )
+    )
+
+    delay_robot_controller_spawner_after_joint_state_broadcaster = RegisterEventHandler(
+        event_handler=OnProcessExit(
+            target_action=joint_state_broadcaster_spawner,
+            on_exit=[robot_controller_spawner],
+        )
+    )
+
     nodes = [
         set_gz_resource_path,
         gazebo,
@@ -180,8 +194,8 @@ def generate_launch_description():
         gz_spawn_entity,
         run_move_group_node,
         
-        joint_state_broadcaster_spawner,
-        robot_controller_spawner,
+        delay_joint_state_broadcaster_spawner_after_gz_spawn_entity,
+        delay_robot_controller_spawner_after_joint_state_broadcaster,
 
         rviz_node,
     ]

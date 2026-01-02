@@ -39,71 +39,8 @@ def generate_launch_description():
             description="Start RViz2 automatically with this launch file.",
         )
     )
-    declared_arguments.append(
-        DeclareLaunchArgument(
-            "gazebo",
-            default_value="False",
-            description="Whether to start Gazebo simulation.",
-        )
-    )
     # Initialize Arguments
     gui = LaunchConfiguration("gui")
-    use_gazebo = LaunchConfiguration('gazebo')
-    use_sim_time = use_gazebo
-
-    pkg_share = get_package_share_directory("ros2_control_demo_description")
-    # 獲取整個 install/share 目錄，讓 Gazebo 能找到所有 package
-    install_share_path = os.path.dirname(pkg_share) 
-
-    # 加入這個環境變數
-    set_gz_resource_path = SetEnvironmentVariable(
-        name="GZ_SIM_RESOURCE_PATH",
-        value=install_share_path
-    )
-
-    # gazebo
-    gazebo = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            [FindPackageShare("ros_gz_sim"), "/launch/gz_sim.launch.py"]
-        ),
-        launch_arguments=[("gz_args", " -r -v 3 empty.sdf")],
-        condition=IfCondition(
-            PythonExpression(["'", use_gazebo, "' == 'true' and '", gui, "' == 'true'"])
-        ),
-    )
-    gazebo_headless = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            [FindPackageShare("ros_gz_sim"), "/launch/gz_sim.launch.py"]
-        ),
-        launch_arguments=[("gz_args", ["--headless-rendering -s -r -v 3 empty.sdf"])],
-        condition=UnlessCondition(
-            PythonExpression(["'", use_gazebo, "' == 'true' and '", gui, "' == 'false'"])
-        ),
-    )
-
-    # Gazebo bridge
-    gazebo_bridge = Node(
-        package="ros_gz_bridge",
-        executable="parameter_bridge",
-        arguments=["/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock"],
-        output="screen",
-        condition=IfCondition(use_gazebo)
-    )
-
-    gz_spawn_entity = Node(
-        package="ros_gz_sim",
-        executable="create",
-        output="screen",
-        arguments=[
-            "-topic",
-            "/robot_description",
-            "-name",
-            "lrmate_200id",
-            "-allow_renaming",
-            "true",
-        ],
-        condition=IfCondition(use_gazebo)
-    )
 
     # Get URDF via xacro
     robot_description_content = Command(
@@ -114,7 +51,7 @@ def generate_launch_description():
                 [FindPackageShare("ros2_control_demo_lrmate_200id"), "urdf", "lrmate_200id.urdf.xacro"]
             ),
             " ",
-            "use_gazebo:=", use_gazebo,
+            "use_gazebo:=false",
         ]
     )
     robot_description = {"robot_description": robot_description_content}
@@ -139,7 +76,6 @@ def generate_launch_description():
             ("~/robot_description", "/robot_description"),
         ],
         output="both",
-        condition=UnlessCondition(use_gazebo),
     )
 
     node_robot_state_publisher = Node(
@@ -148,7 +84,6 @@ def generate_launch_description():
         output="screen",
         parameters=[
             robot_description,
-            {"use_sim_time": use_sim_time}
         ],
         remappings=[
             ("/robot_description", "robot_description"),
@@ -173,8 +108,7 @@ def generate_launch_description():
         package="moveit_ros_move_group",
         executable="move_group",
         output="screen",
-        parameters=[moveit_config.to_dict(),
-                    {"use_sim_time": use_sim_time}],
+        parameters=[moveit_config.to_dict(),],
     )
 
     joint_state_broadcaster_spawner = Node(
@@ -196,7 +130,6 @@ def generate_launch_description():
         arguments=["-d", rviz_config_file],
         condition=IfCondition(gui),
         parameters=[
-            {"use_sim_time": use_sim_time},
             moveit_config.robot_description,
             moveit_config.robot_description_semantic,
             moveit_config.robot_description_kinematics,
@@ -205,50 +138,12 @@ def generate_launch_description():
         ],
     )
 
-    delay_joint_state_broadcaster_spawner_after_gz_spawn_entity = RegisterEventHandler(
-        event_handler=OnProcessExit(
-            target_action=gz_spawn_entity,
-            on_exit=[joint_state_broadcaster_spawner],
-        )
-    )
-
-    delay_robot_controller_spawner_after_joint_state_broadcaster = RegisterEventHandler(
-        event_handler=OnProcessExit(
-            target_action=joint_state_broadcaster_spawner,
-            on_exit=[robot_controller_spawner],
-        )
-    )
-
-    manual_joint_state_broadcaster_spawner = Node(
-        package="controller_manager",
-        executable="spawner",
-        arguments=["joint_state_broadcaster"],
-        condition=UnlessCondition(use_gazebo),
-    )
-
-    manual_robot_controller_spawner = Node(
-        package="controller_manager",
-        executable="spawner",
-        arguments=["lrmate_200id_controller"],
-        condition=UnlessCondition(use_gazebo),
-    )
-
     nodes = [
-        set_gz_resource_path,
-        gazebo,
-        gazebo_headless,
-        gazebo_bridge,
+        run_move_group_node,
         control_node,
         node_robot_state_publisher,
-        gz_spawn_entity,
-        run_move_group_node,
-        
-        delay_joint_state_broadcaster_spawner_after_gz_spawn_entity,
-        delay_robot_controller_spawner_after_joint_state_broadcaster,
-        
-        manual_joint_state_broadcaster_spawner,
-        manual_robot_controller_spawner,
-
+        joint_state_broadcaster_spawner,
+        robot_controller_spawner,
         rviz_node,
     ]
 
