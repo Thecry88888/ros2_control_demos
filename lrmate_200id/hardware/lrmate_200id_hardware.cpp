@@ -44,7 +44,26 @@ CallbackReturn LRMATE_200ID::on_init(const hardware_interface::HardwareInfo & in
 CallbackReturn LRMATE_200ID::on_configure(const rclcpp_lifecycle::State & previous_state)
 {
     serverSocket_ = startServer(FANUC_PORT);
+    return CallbackReturn::SUCCESS;
+}
+
+CallbackReturn LRMATE_200ID::on_activate(const rclcpp_lifecycle::State & /*previous_state*/)
+{
     clientSocket_ = acceptClient();
+    if (clientSocket_ == -1) {
+        // 連線尚未建立，但允許稍後重連
+        RCLCPP_WARN(get_logger(), "目前無 Client 連線，將在 read() 循環中持續嘗試。");
+        return CallbackReturn::SUCCESS;
+    }
+    return CallbackReturn::SUCCESS;
+}
+
+CallbackReturn LRMATE_200ID::on_deactivate(const rclcpp_lifecycle::State & /*previous_state*/)
+{
+    if (clientSocket_ != -1) {
+        close(clientSocket_);
+        clientSocket_ = -1;
+    }
     return CallbackReturn::SUCCESS;
 }
 
@@ -76,19 +95,36 @@ std::vector<hardware_interface::CommandInterface> LRMATE_200ID::export_command_i
 
 return_type LRMATE_200ID::read(const rclcpp::Time & /*time*/, const rclcpp::Duration & period)
 {
+    if (clientSocket_ == -1) {
+        clientSocket_ = acceptClient(); // 嘗試非阻塞連線
+        
+        if (clientSocket_ == -1) {
+            // 依然沒連上，保持當前 joint 數值不變，讓系統不崩潰
+            return return_type::OK; 
+        }
+    }
+
     CommandHeader header = {0, CMD_GET_JOINT_INFO};
     send(clientSocket_, &header, sizeof(header), 0);
 
     float values[6];
     ssize_t n = recv(clientSocket_, values, sizeof(values), 0);
 
+    if (n <= 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            return return_type::OK; // 只是這毫秒沒資料
+        } else {
+            RCLCPP_ERROR(get_logger(), "連線中斷！");
+            close(clientSocket_);
+            clientSocket_ = -1; // 標記為斷線，下次循環會觸發 acceptClient()
+            return return_type::OK; 
+        }
+    }
+
     if (n == sizeof(values)) {
         for (size_t i = 0; i < joint_position_.size(); i++) {
             joint_position_[i] = values[i] * (M_PI / 180.0); // deg2rad
         }
-    } else {
-        RCLCPP_ERROR(get_logger(), "Read joints failed!");
-        return return_type::ERROR;
     }
     return return_type::OK;
 }
