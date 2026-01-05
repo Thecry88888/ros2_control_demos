@@ -48,7 +48,7 @@ CallbackReturn LRMATE_200ID::on_configure(const rclcpp_lifecycle::State & previo
 }
 
 CallbackReturn LRMATE_200ID::on_activate(const rclcpp_lifecycle::State & /*previous_state*/)
-{
+{   
     clientSocket_ = acceptClient();
     if (clientSocket_ == -1) {
         // 連線尚未建立，但允許稍後重連
@@ -131,22 +131,42 @@ return_type LRMATE_200ID::read(const rclcpp::Time & /*time*/, const rclcpp::Dura
 
 return_type LRMATE_200ID::write(const rclcpp::Time &, const rclcpp::Duration &)
 {   
+    if (clientSocket_ == -1) {
+        return return_type::OK; 
+    }
+    
     if (is_command_changed()) {
-        CommandHeader header = {0, CMD_MOVE_JOINT};
-        send(clientSocket_, &header, sizeof(header), 0);
-
+        int32_t robot_num = 0;
+        int32_t cmd_id = CMD_MOVE_JOINT;
         float values[6];
         for (size_t i = 0; i < joint_position_command_.size(); ++i) {
             values[i] = static_cast<float>(joint_position_command_[i] * (180.0 / M_PI)); // rad2deg
         }
 
+        send(clientSocket_, &robot_num, 4, 0);
+        send(clientSocket_, &cmd_id, 4, 0);
         ssize_t n = send(clientSocket_, values, sizeof(values), 0);
         
-        if (n != sizeof(values)) {
+        if (n == -1) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                // 緩衝區滿了。這是正常現象，跳過此週期，不報 ERROR
+                return return_type::OK; 
+            } else {
+                // 真正的連線錯誤 (例如連線重置)
+                RCLCPP_ERROR(get_logger(), "Socket 發送失敗: %s", strerror(errno));
+                close(clientSocket_);
+                clientSocket_ = -1;
+                return return_type::OK; // 回傳 OK 保持硬體組件 active，讓 read 嘗試重連
+            }
+        }
+
+        if (n < static_cast<ssize_t>(sizeof(values))) {
             RCLCPP_ERROR(get_logger(), "Write joints failed!");
             return return_type::ERROR;
         }
         pre_joint_position_command_ = joint_position_command_;
+        RCLCPP_INFO(get_logger(), 
+            "執行中指令 J1: %f deg", joint_position_command_[0] * 180.0 / M_PI);
     }
     return return_type::OK;
 }
@@ -200,8 +220,13 @@ bool LRMATE_200ID::is_command_changed()
 {
     // This function can check if the command has changed
     // and perform necessary actions if needed.
-    if (joint_position_command_ != pre_joint_position_command_) {
-        return true;
+    // calculate if command changed
+    const double thresh = 1e-1;
+    size_t n = joint_position_command_.size();
+    for (size_t i = 0; i < n; ++i) {
+        if (std::fabs(joint_position_command_[i] - pre_joint_position_command_[i]) > thresh) {
+            return true;
+        }
     }
     return false;
 }
