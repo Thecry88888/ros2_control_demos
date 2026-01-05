@@ -131,8 +131,8 @@ return_type LRMATE_200ID::read(const rclcpp::Time & /*time*/, const rclcpp::Dura
 
 return_type LRMATE_200ID::write(const rclcpp::Time &, const rclcpp::Duration &)
 {   
-    /*if (is_command_changed()) {
-        CommandHeader header = {0, CMD_MOVE};
+    if (is_command_changed()) {
+        CommandHeader header = {0, CMD_MOVE_JOINT};
         send(clientSocket_, &header, sizeof(header), 0);
 
         float values[6];
@@ -147,7 +147,7 @@ return_type LRMATE_200ID::write(const rclcpp::Time &, const rclcpp::Duration &)
             return return_type::ERROR;
         }
         pre_joint_position_command_ = joint_position_command_;
-    }*/
+    }
     return return_type::OK;
 }
 
