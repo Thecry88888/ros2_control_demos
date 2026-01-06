@@ -65,16 +65,27 @@ protected:
 
 private:
     static constexpr int FANUC_PORT = 12000;
+    int update_rate_divider_ = 0;
+
     int serverSocket_, clientSocket_;
     struct sockaddr_in serverAddress_, clientAddress_;
+
+    #pragma pack(push, 1)
     struct CommandHeader {
-        int robot_num;
-        int cmd_id;
-    } __attribute__((packed));
+        int32_t robot_num;
+        int32_t cmd_id;
+    };
+
+    struct CommandPacket {
+        CommandHeader header;
+        float values[6];
+    };
+    #pragma pack(pop)
 
     int startServer(int port);
     int acceptClient();
-    bool is_command_changed();
+
+    bool is_reached(); /// @brief check if the robot has reached the commanded position
 
     rclcpp::Logger get_logger() const {
         return rclcpp::get_logger("LRMATE_200ID");

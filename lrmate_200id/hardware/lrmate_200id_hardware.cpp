@@ -131,21 +131,18 @@ return_type LRMATE_200ID::read(const rclcpp::Time & /*time*/, const rclcpp::Dura
 
 return_type LRMATE_200ID::write(const rclcpp::Time &, const rclcpp::Duration &)
 {   
-    if (clientSocket_ == -1) {
-        return return_type::OK; 
-    }
+    if (clientSocket_ == -1) return return_type::OK;
     
-    if (is_command_changed()) {
-        int32_t robot_num = 0;
-        int32_t cmd_id = CMD_MOVE_JOINT;
-        float values[6];
-        for (size_t i = 0; i < joint_position_command_.size(); ++i) {
-            values[i] = static_cast<float>(joint_position_command_[i] * (180.0 / M_PI)); // rad2deg
-        }
+    update_rate_divider_++;
+    if (update_rate_divider_ % 5 != 0) return return_type::OK; // update_rate/5
 
-        send(clientSocket_, &robot_num, 4, 0);
-        send(clientSocket_, &cmd_id, 4, 0);
-        ssize_t n = send(clientSocket_, values, sizeof(values), 0);
+    CommandPacket packet = {0, CMD_MOVE_JOINT, {0}};
+    if (is_reached()) {
+        
+        for (size_t i = 0; i < joint_position_command_.size(); ++i) {
+            packet.values[i] = static_cast<float>(joint_position_command_[i] * (180.0 / M_PI)); // rad2deg
+        }
+        ssize_t n = send(clientSocket_, &packet, sizeof(packet), 0);
         
         if (n == -1) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -160,7 +157,7 @@ return_type LRMATE_200ID::write(const rclcpp::Time &, const rclcpp::Duration &)
             }
         }
 
-        if (n < static_cast<ssize_t>(sizeof(values))) {
+        if (n < static_cast<ssize_t>(sizeof(packet))) {
             RCLCPP_ERROR(get_logger(), "Write joints failed!");
             return return_type::ERROR;
         }
@@ -216,15 +213,12 @@ int LRMATE_200ID::acceptClient() {
     return client;
 }
 
-bool LRMATE_200ID::is_command_changed()
+bool LRMATE_200ID::is_reached()
 {
-    // This function can check if the command has changed
-    // and perform necessary actions if needed.
-    // calculate if command changed
-    const double thresh = 1e-1;
+    const double thresh = 1e-2; // radians
     size_t n = joint_position_command_.size();
     for (size_t i = 0; i < n; ++i) {
-        if (std::fabs(joint_position_command_[i] - pre_joint_position_command_[i]) > thresh) {
+        if (std::fabs(joint_position_command_[i] - pre_joint_position_command_[i]) < thresh) {
             return true;
         }
     }
