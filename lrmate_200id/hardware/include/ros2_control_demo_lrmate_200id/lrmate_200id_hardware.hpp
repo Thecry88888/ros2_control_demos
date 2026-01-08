@@ -56,7 +56,6 @@ public:
 protected:
     /// The size of this vector is (standard_interfaces_.size() x nr_joints)
     std::vector<double> joint_position_command_;
-    std::vector<double> pre_joint_position_command_;
     std::vector<double> joint_position_;
 
     std::unordered_map<std::string, std::vector<std::string>> joint_interfaces = {

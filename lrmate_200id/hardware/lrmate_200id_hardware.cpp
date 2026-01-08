@@ -27,8 +27,7 @@ CallbackReturn LRMATE_200ID::on_init(const hardware_interface::HardwareInfo & in
 
     // robot has 6 joints and 2 interfaces
     joint_position_.assign(6, 0);
-    joint_position_command_.assign(6, 0);
-    pre_joint_position_command_.assign(6, 0);
+    joint_position_command_.assign(6, INFINITY);
 
     for (const auto & joint : info_.joints)
     {
@@ -132,9 +131,8 @@ return_type LRMATE_200ID::read(const rclcpp::Time & /*time*/, const rclcpp::Dura
 return_type LRMATE_200ID::write(const rclcpp::Time &, const rclcpp::Duration &)
 {   
     if (clientSocket_ == -1) return return_type::OK;
-    
-    update_rate_divider_++;
-    if (update_rate_divider_ % 5 != 0) return return_type::OK; // update_rate/5
+    update_rate_divider_ = (update_rate_divider_ + 1) % 5; // 50Hz / 5 = 10Hz
+    if (update_rate_divider_ != 0) return return_type::OK;
 
     CommandPacket packet = {0, CMD_MOVE_JOINT, {0}};
     if (is_reached()) {
@@ -161,7 +159,6 @@ return_type LRMATE_200ID::write(const rclcpp::Time &, const rclcpp::Duration &)
             RCLCPP_ERROR(get_logger(), "Write joints failed!");
             return return_type::ERROR;
         }
-        pre_joint_position_command_ = joint_position_command_;
         RCLCPP_INFO(get_logger(), 
             "執行中指令 J1: %f deg", joint_position_command_[0] * 180.0 / M_PI);
     }
@@ -215,14 +212,15 @@ int LRMATE_200ID::acceptClient() {
 
 bool LRMATE_200ID::is_reached()
 {
-    const double thresh = 1e-2; // radians
+    const double thresh = 1e-1; // radians
     size_t n = joint_position_command_.size();
+    // Check if all joints total are within the threshold
     for (size_t i = 0; i < n; ++i) {
-        if (std::fabs(joint_position_command_[i] - pre_joint_position_command_[i]) < thresh) {
-            return true;
+        if (std::abs(joint_position_[i] - joint_position_command_[i]) > thresh) {
+            return false;
         }
     }
-    return false;
+    return true;
 }
 
 }  // namespace ros2_control_demo_lrmate_200id
