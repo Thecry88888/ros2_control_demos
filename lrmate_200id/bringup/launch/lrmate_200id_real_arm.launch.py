@@ -64,7 +64,7 @@ def generate_launch_description():
         [
                 FindPackageShare("ros2_control_demo_lrmate_200id"),
                 "config",
-                "lrmate_200id_controller.yaml",
+                "lrmate_200id_real_controller.yaml",
         ]
     )
 

@@ -131,12 +131,12 @@ return_type LRMATE_200ID::read(const rclcpp::Time & /*time*/, const rclcpp::Dura
 return_type LRMATE_200ID::write(const rclcpp::Time &, const rclcpp::Duration &)
 {   
     if (clientSocket_ == -1) return return_type::OK;
-    update_rate_divider_ = (update_rate_divider_ + 1) % 5; // 50Hz / 5 = 10Hz
+
+    update_rate_divider_ = (update_rate_divider_ + 1) % 250; // 50Hz / 5 = 10Hz
     if (update_rate_divider_ != 0) return return_type::OK;
 
-    CommandPacket packet = {0, CMD_MOVE_JOINT, {0}};
     if (is_reached()) {
-        
+        CommandPacket packet = {0, CMD_MOVE_JOINT, {0}};
         for (size_t i = 0; i < joint_position_command_.size(); ++i) {
             packet.values[i] = static_cast<float>(joint_position_command_[i] * (180.0 / M_PI)); // rad2deg
         }
@@ -212,7 +212,7 @@ int LRMATE_200ID::acceptClient() {
 
 bool LRMATE_200ID::is_reached()
 {
-    const double thresh = 1e-1; // radians
+    const double thresh = 1e-2; // radians
     size_t n = joint_position_command_.size();
     // Check if all joints total are within the threshold
     for (size_t i = 0; i < n; ++i) {
