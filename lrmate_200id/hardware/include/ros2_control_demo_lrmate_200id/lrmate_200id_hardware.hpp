@@ -57,6 +57,7 @@ protected:
     /// The size of this vector is (standard_interfaces_.size() x nr_joints)
     std::vector<double> joint_position_command_;
     std::vector<double> joint_position_;
+    std::vector<double> last_sent_command_;
 
     std::unordered_map<std::string, std::vector<std::string>> joint_interfaces = {
         {"position", {}}
@@ -83,8 +84,6 @@ private:
 
     int startServer(int port);
     int acceptClient();
-
-    bool is_reached(); /// @brief check if the robot has reached the commanded position
 
     rclcpp::Logger get_logger() const {
         return rclcpp::get_logger("LRMATE_200ID");

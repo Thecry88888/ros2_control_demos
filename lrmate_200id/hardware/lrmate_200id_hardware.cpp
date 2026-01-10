@@ -27,7 +27,8 @@ CallbackReturn LRMATE_200ID::on_init(const hardware_interface::HardwareInfo & in
 
     // robot has 6 joints and 2 interfaces
     joint_position_.assign(6, 0);
-    joint_position_command_.assign(6, INFINITY);
+    joint_position_command_.assign(6, 0);
+    last_sent_command_.assign(6, 0);
 
     for (const auto & joint : info_.joints)
     {
@@ -132,16 +133,26 @@ return_type LRMATE_200ID::write(const rclcpp::Time &, const rclcpp::Duration &)
 {   
     if (clientSocket_ == -1) return return_type::OK;
 
-    update_rate_divider_ = (update_rate_divider_ + 1) % 250; // 50Hz / 5 = 10Hz
+    update_rate_divider_ = (update_rate_divider_ + 1) % 50; // 50Hz / 5 = 10Hz
     if (update_rate_divider_ != 0) return return_type::OK;
 
-    if (is_reached()) {
+    bool command_changed = false;
+    for (size_t i = 0; i < joint_position_command_.size(); i++) {
+        // 使用一個極小的門檻值 (例如 0.0001) 判斷 MoveIt 是否給了新目標
+        if (std::abs(joint_position_command_[i] - last_sent_command_[i]) > 1e-4) {
+            command_changed = true;
+            break;
+        }
+    }
+
+    if (command_changed) {
         CommandPacket packet = {0, CMD_MOVE_JOINT, {0}};
-        for (size_t i = 0; i < joint_position_command_.size(); ++i) {
-            packet.values[i] = static_cast<float>(joint_position_command_[i] * (180.0 / M_PI)); // rad2deg
+        for (size_t i = 0; i < 6; ++i) {
+            packet.values[i] = static_cast<float>(joint_position_command_[i] * (180.0 / M_PI));
         }
         ssize_t n = send(clientSocket_, &packet, sizeof(packet), 0);
-        
+        for (size_t i = 0; i < 6; i++) last_sent_command_[i] = joint_position_command_[i];
+
         if (n == -1) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 // 緩衝區滿了。這是正常現象，跳過此週期，不報 ERROR
@@ -210,18 +221,6 @@ int LRMATE_200ID::acceptClient() {
     return client;
 }
 
-bool LRMATE_200ID::is_reached()
-{
-    const double thresh = 1e-2; // radians
-    size_t n = joint_position_command_.size();
-    // Check if all joints total are within the threshold
-    for (size_t i = 0; i < n; ++i) {
-        if (std::abs(joint_position_[i] - joint_position_command_[i]) > thresh) {
-            return false;
-        }
-    }
-    return true;
-}
 
 }  // namespace ros2_control_demo_lrmate_200id
 
